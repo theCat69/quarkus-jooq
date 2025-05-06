@@ -33,12 +33,12 @@ public class JobApplication implements QuarkusApplication {
     postgresDsl.meta().getSchemas("public")
       .getFirst().getTables().forEach(table -> {
         log.info("table found : {}", table);
+        //Drop old data
+        dslAlt.dropTableIfExists(table)
+          .execute();
         // Create table if not exist
         dslAlt.createTableIfNotExists(table.getName())
           .columns(table.fields())
-          .execute();
-        //Drop old data
-        dslAlt.dropTableIfExists(table)
           .execute();
         // Fetch records
         List<Map<String, Object>> maps = postgresDsl.selectFrom(table).fetch().intoMaps();
