@@ -1,0 +1,4 @@
+databaseChangeLog:
+  - includeAll:
+      path: "postgres-scripts/"
+      relativeToChangelogFile: true

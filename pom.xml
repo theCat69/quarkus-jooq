@@ -31,13 +31,12 @@
 
     <dependencies>
         <dependency>
-            <groupId>io.quarkiverse.jooq</groupId>
-            <artifactId>quarkus-jooq</artifactId>
-            <version>2.1.0</version>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-jdbc-postgresql</artifactId>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-jdbc-postgresql</artifactId>
+            <artifactId>quarkus-jdbc-oracle</artifactId>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -48,10 +47,19 @@
             <artifactId>quarkus-container-image-docker</artifactId>
         </dependency>
         <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-liquibase</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <version>1.18.38</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkiverse.fluentjdbc</groupId>
+            <artifactId>quarkus-fluentjdbc</artifactId>
+            <version>1.0.0</version>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -114,33 +122,6 @@
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
-<!--            <plugin>-->
-<!--                <groupId>org.jooq</groupId>-->
-<!--                <artifactId>jooq-codegen-maven</artifactId>-->
-<!--                <version>3.20.3</version>-->
-
-<!--                <executions>-->
-<!--                    <execution>-->
-<!--                        <id>my-id</id>-->
-<!--                        <phase>generate-sources</phase>-->
-<!--                        <goals>-->
-<!--                            <goal>generate</goal>-->
-<!--                        </goals>-->
-<!--                    </execution>-->
-<!--                </executions>-->
-
-<!--                <configuration>-->
-<!--                    <jdbc>-->
-<!--                        <driver>oracle.jdbc.OracleDriver</driver>-->
-<!--                        <url>jdbc:oracle:thin:@[your jdbc connection parameters]</url>-->
-<!--                        <user>[your database user]</user>-->
-<!--                        <password>[your database password]</password>-->
-<!--                    </jdbc>-->
-<!--                    <generator>-->
-<!--                        -->
-<!--                    </generator>-->
-<!--                </configuration>-->
-<!--            </plugin>-->
         </plugins>
     </build>
 

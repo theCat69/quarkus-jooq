@@ -1,62 +1,39 @@
 package com.fvd.jooq;
 
+import com.fvd.jooq.db.OracleQueries;
+import com.fvd.jooq.db.PostgresQueries;
+import com.fvd.jooq.db.model.Table;
 import io.quarkus.runtime.QuarkusApplication;
 import io.quarkus.runtime.annotations.QuarkusMain;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
+import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.jooq.DSLContext;
-import org.jooq.InsertValuesStepN;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @QuarkusMain
+@RequiredArgsConstructor
 public class JobApplication implements QuarkusApplication {
 
-  @Inject
-  @Named("dslAlt")
-  DSLContext dslAlt;
-  @Inject
-  DSLContext postgresDsl;
+  private final PostgresQueries postgresQueries;
+  private final OracleQueries oracleQueries;
+
+  @ConfigProperty(name = "com.fvd.app.tables")
+  List<String> tableNames;
 
   @Override
   @SneakyThrows
   public int run(String... args) throws Exception {
     log.info("start");
-    //verify nothing is inside
-    dslAlt.meta().getSchemas("public")
-      .getFirst().getTables().forEach(table -> log.info("table in alt before : {}", table));
-    //migrate
-    postgresDsl.meta().getSchemas("public")
-      .getFirst().getTables().forEach(table -> {
-        log.info("table found : {}", table);
-        //Drop old data
-        dslAlt.dropTableIfExists(table)
-          .execute();
-        // Create table if not exist
-        dslAlt.createTableIfNotExists(table.getName())
-          .columns(table.fields())
-          .execute();
-        // Fetch records
-        List<Map<String, Object>> maps = postgresDsl.selectFrom(table).fetch().intoMaps();
-        //Insert records
-        InsertValuesStepN<?> insertStep = dslAlt.insertInto(table, table.fields());
-        maps.forEach(map ->
-          insertStep.values(map.values())
-        );
-        insertStep.execute();
-      });
-    //Verify
-    dslAlt.meta().getSchemas("public")
-      .getFirst().getTables().forEach(table -> {
-        log.info("table in alt after : {}", table);
-        dslAlt.selectFrom(table).fetch().forEach(record -> {
-          log.info("Record found ! {}", record);
-        });
-      });
+    postgresQueries.createSchemaIfNotExist();
+    tableNames.reversed().forEach(postgresQueries::dropTablesIfExists);
+    tableNames.forEach(tableName -> {
+      Table table = oracleQueries.findTableDefinition(tableName);
+      log.info("Table def found : {}", table);
+      postgresQueries.createTableDefinition(table);
+    });
     log.info("end");
     return 0;
   }
