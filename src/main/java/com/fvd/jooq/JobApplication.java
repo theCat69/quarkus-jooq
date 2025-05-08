@@ -27,12 +27,14 @@ public class JobApplication implements QuarkusApplication {
   @SneakyThrows
   public int run(String... args) throws Exception {
     log.info("start");
+    // TODO prevoir de drop le schema avec une property
     postgresQueries.createSchemaIfNotExist();
-    tableNames.reversed().forEach(postgresQueries::dropTablesIfExists);
+    tableNames.reversed().forEach(postgresQueries::dropTableIfExists);
     tableNames.forEach(tableName -> {
       Table table = oracleQueries.findTableDefinition(tableName);
       log.info("Table def found : {}", table);
       postgresQueries.createTableDefinition(table);
+      oracleQueries.fetchDatasInBatchAndProcess(table, postgresQueries);
     });
     log.info("end");
     return 0;

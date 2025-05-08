@@ -1,5 +1,6 @@
 package com.fvd.jooq.db;
 
+import com.fvd.jooq.db.batching.BatchProcessor;
 import com.fvd.jooq.db.mapper.ColumnMapper;
 import com.fvd.jooq.db.mapper.IndexMapper;
 import com.fvd.jooq.db.model.Column;
@@ -10,13 +11,20 @@ import io.quarkus.agroal.DataSource;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.codejargon.fluentjdbc.api.FluentJdbc;
+import org.codejargon.fluentjdbc.api.mapper.Mappers;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class OracleQueries {
 
   private final FluentJdbc oracleJdbc;
+
+  @ConfigProperty(name = "com.fvd.app.batch.size")
+  Integer batchSize;
 
   @Inject
   public OracleQueries(@DataSource("alt") AgroalDataSource datasource) {
@@ -49,6 +57,7 @@ public class OracleQueries {
           "GROUP BY i.index_name, i.uniqueness, i.table_name")
       .namedParam("table", tableName.toUpperCase())
       .listResult(new IndexMapper())
+      // On filtre les clé primaires
       .stream().filter(index -> !index.isPrimaryKeyIndex(columns)).toList();
 
     return Table.builder()
@@ -56,5 +65,32 @@ public class OracleQueries {
       .columns(columns)
       .indexes(indexes)
       .build();
+  }
+
+  public void fetchDatasInBatchAndProcess(Table table, BatchProcessor batchProcessor) {
+    String paginationSql =
+      "SELECT " + table.getColumns().stream().map(Column::getName).collect(Collectors.joining(", ")) +
+        " FROM (" +
+        "  SELECT t.*, ROW_NUMBER() OVER (ORDER BY " + table.getPrimaryKey().getName() + ") AS rn " +
+        "  FROM " + table.getName() + " t" +
+        ") WHERE rn BETWEEN ? AND ?";
+
+    int startRow = 1;
+    int endRow = batchSize;
+    List<Map<String, Object>> batch;
+
+    do {
+      batch = oracleJdbc.query().select(paginationSql)
+          .params(startRow, endRow)
+            .listResult(Mappers.map());
+
+      if (!batch.isEmpty()) {
+        batchProcessor.processBatch(batch);
+      }
+
+      startRow = endRow + 1;
+      endRow = startRow + batchSize - 1;
+    } while (batch.size() == batchSize);
+
   }
 }

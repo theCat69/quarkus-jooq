@@ -1,5 +1,6 @@
 package com.fvd.jooq.db;
 
+import com.fvd.jooq.db.batching.BatchProcessor;
 import com.fvd.jooq.db.model.Table;
 import io.agroal.api.AgroalDataSource;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -9,11 +10,13 @@ import org.apache.commons.lang3.StringUtils;
 import org.codejargon.fluentjdbc.api.FluentJdbc;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
 @ApplicationScoped
-public class PostgresQueries {
+public class PostgresQueries implements BatchProcessor {
 
   @ConfigProperty(name = "quarkus.liquibase.schemas", defaultValue = "")
   String schema;
@@ -31,7 +34,7 @@ public class PostgresQueries {
     }
   }
 
-  public void dropTablesIfExists(String tableName) {
+  public void dropTableIfExists(String tableName) {
     postgresJdbc.query().update("DROP TABLE IF EXISTS " + getTableName(tableName, schema)).run();
   }
 
@@ -46,7 +49,11 @@ public class PostgresQueries {
       " )").run();
     //add indexes
     table.getIndexes().forEach(index -> postgresJdbc.query().update(index.getCreateIndexString(schema)).run());
-    log.info("done");
   }
 
+  @Override
+  public void processBatch(List<Map<String, Object>> batch) {
+    log.info("Result found ! {} ", batch);
+//    postgresJdbc.query().update("INSERT INTO")
+  }
 }

@@ -1,6 +1,5 @@
 -- liquibase formatted sql
 -- changeset oracle:001.1
---CREATE SCHEMA ALT_SCHEMA AUTHORIZATION toto;
 
 CREATE TABLE dept (
   dept_id number(10) NOT NULL,
@@ -22,3 +21,16 @@ create index emp_index_emp_name_salary on emp (emp_name, salary);
 -- rollback DROP INDEX emp_index_emp_name_salary
 -- rollback DROP TABLE dept
 -- rollback DROP TABLE emp
+
+-- changeset oracle:001.2
+insert into dept(dept_id, dept_name)
+values(1, 'departement');
+insert into dept(dept_id, dept_name)
+values(2, 'departement2');
+
+insert into emp(emp_no, emp_name, dept_id, salary)
+values (1, 'name', 1, 5000);
+insert into emp(emp_no, emp_name, dept_id, salary)
+values (2, 'name2', 2, 7000);
+-- rollback TRUNCATE TABLE DEPT
+-- rollback TRUNCATE TABLE EMP
