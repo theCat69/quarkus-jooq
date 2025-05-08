@@ -1,6 +1,7 @@
 package com.fvd.jooq.db;
 
 import com.fvd.jooq.db.batching.BatchProcessor;
+import com.fvd.jooq.db.model.Column;
 import com.fvd.jooq.db.model.Table;
 import io.agroal.api.AgroalDataSource;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -25,7 +26,7 @@ public class PostgresQueries implements BatchProcessor {
 
   @Inject
   public PostgresQueries(AgroalDataSource dataSource) {
-    this.postgresJdbc = JdbcFluentFactory.createFluentJdbc(dataSource);
+    this.postgresJdbc = JdbcFluentFactory.createFluentJdbc(dataSource, JdbcFluentFactory.DBType.POSTGRES);
   }
 
   public void createSchemaIfNotExist() {
@@ -52,8 +53,12 @@ public class PostgresQueries implements BatchProcessor {
   }
 
   @Override
-  public void processBatch(List<Map<String, Object>> batch) {
-    log.info("Result found ! {} ", batch);
-//    postgresJdbc.query().update("INSERT INTO")
+  public void processBatch(List<Map<String, Object>> batch, Table table) {
+    postgresJdbc.query().batch("INSERT INTO " + getTableName(table.getName(), schema) + " (" +
+        table.getColumns().stream().map(Column::getName).collect(Collectors.joining(", ")) +
+        ") VALUES (" + table.getColumns().stream().map(col -> "?").collect(Collectors.joining(", ")) + ")")
+      .params(batch.stream()
+        .map(map -> map.values().stream().toList()))
+      .batchSize(batch.size()).run();
   }
 }

@@ -28,7 +28,7 @@ public class OracleQueries {
 
   @Inject
   public OracleQueries(@DataSource("alt") AgroalDataSource datasource) {
-    this.oracleJdbc = JdbcFluentFactory.createFluentJdbc(datasource);
+    this.oracleJdbc = JdbcFluentFactory.createFluentJdbc(datasource, JdbcFluentFactory.DBType.ORACLE);
   }
 
   public Table findTableDefinition(String tableName) {
@@ -85,7 +85,7 @@ public class OracleQueries {
             .listResult(Mappers.map());
 
       if (!batch.isEmpty()) {
-        batchProcessor.processBatch(batch);
+        batchProcessor.processBatch(batch, table);
       }
 
       startRow = endRow + 1;

@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.codejargon.fluentjdbc.api.FluentJdbc;
 import org.codejargon.fluentjdbc.api.FluentJdbcBuilder;
 import org.codejargon.fluentjdbc.api.query.listen.AfterQueryListener;
+import org.codejargon.fluentjdbc.api.query.listen.ExecutionDetails;
 
 import javax.sql.DataSource;
 
@@ -12,16 +13,25 @@ import javax.sql.DataSource;
 @Slf4j
 public class JdbcFluentFactory {
 
-  private final AfterQueryListener listener = execution -> {
-    if (execution.success()) {
-      log.debug("Query took {} ms to execute: {}", execution.executionTimeMs(), execution.sql());
-    }
-  };
-
-  public FluentJdbc createFluentJdbc(DataSource dataSource) {
+  public FluentJdbc createFluentJdbc(DataSource dataSource, DBType dbType) {
     return new FluentJdbcBuilder()
       .connectionProvider(dataSource)
-      .afterQueryListener(listener)
+      .afterQueryListener(new AppQueryListener(dbType))
       .build();
   }
+
+  public enum DBType {
+    POSTGRES,
+    ORACLE
+  }
+
+  private record AppQueryListener(DBType dbType) implements AfterQueryListener {
+    @Override
+    public void listen(ExecutionDetails execution) {
+      if (execution.success()) {
+        log.debug("Query on {} took {} ms to execute: {}", dbType, execution.executionTimeMs(), execution.sql());
+      }
+    }
+  }
+
 }
