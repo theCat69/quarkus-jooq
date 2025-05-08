@@ -27,7 +27,12 @@ public class JobApplication implements QuarkusApplication {
   @SneakyThrows
   public int run(String... args) throws Exception {
     log.info("start");
-    // TODO prevoir de drop le schema avec une property
+    //TODO prevoir un try catch pour
+    // - D'abord récupérer les tables prééxistantes et créer des tables temporaires avec un prefix TMP_ par exemple
+    // - Ensuite on drop les tables "normals" et on travail dessus
+    // - En cas d'erreur on drop tout les tables et on recréé les tables "normals" avec les tables temporaires
+    // - En finally on supprime les tables temporaires.
+    // TODO prevoir de drop le schema avec une property si on veut forcer un schema propre
     postgresQueries.createSchemaIfNotExist();
     tableNames.reversed().forEach(postgresQueries::dropTableIfExists);
     tableNames.forEach(tableName -> {
