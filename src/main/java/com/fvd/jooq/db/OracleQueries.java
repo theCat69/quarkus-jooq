@@ -2,38 +2,45 @@ package com.fvd.jooq.db;
 
 import com.fvd.jooq.db.batching.BatchProcessor;
 import com.fvd.jooq.db.mapper.ColumnMapper;
-import com.fvd.jooq.db.mapper.IndexMapper;
+import com.fvd.jooq.db.mapper.MapMapper;
 import com.fvd.jooq.db.model.Column;
-import com.fvd.jooq.db.model.Index;
 import com.fvd.jooq.db.model.Table;
-import io.agroal.api.AgroalDataSource;
-import io.quarkus.agroal.DataSource;
+import io.quarkus.reactive.datasource.ReactiveDataSource;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
+import io.vertx.mutiny.sqlclient.Pool;
+import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.codejargon.fluentjdbc.api.FluentJdbc;
-import org.codejargon.fluentjdbc.api.mapper.Mappers;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+@Slf4j
 @ApplicationScoped
 public class OracleQueries {
-
-  private final FluentJdbc oracleJdbc;
 
   @ConfigProperty(name = "com.fvd.app.batch.size")
   Integer batchSize;
 
+  private final Pool oraPool;
+
   @Inject
-  public OracleQueries(@DataSource("alt") AgroalDataSource datasource) {
-    this.oracleJdbc = JdbcFluentFactory.createFluentJdbc(datasource, JdbcFluentFactory.DBType.ORACLE);
+  public OracleQueries(@ReactiveDataSource("alt") Pool oraPool) {
+    this.oraPool = oraPool;
   }
 
-  public Table findTableDefinition(String tableName) {
+  @SneakyThrows
+  public Uni<Table> findTableDefinition(String tableName) {
+    log.info("5");
     // Get column definitions
-    List<Column> columns = oracleJdbc.query().select(
+    return oraPool.preparedQuery(
         "SELECT atc.column_name, atc.data_type, atc.data_length, atc.data_precision, atc.data_scale, atc.nullable, atc.table_name, " +
           " MAX(acc_fk.table_name) as fk_table_name, MAX(acc_fk.column_name) as fk_column_name, " +
           "    LISTAGG(ac.constraint_type, '|') within GROUP (order by atc.column_id) as constraint_types" +
@@ -41,33 +48,34 @@ public class OracleQueries {
           "          LEFT JOIN all_cons_columns acc on acc.table_name = atc.table_name and acc.column_name = atc.column_name" +
           "          LEFT JOIN all_constraints ac on acc.constraint_name = ac.constraint_name" +
           "          LEFT JOIN all_cons_columns acc_fk on acc_fk.constraint_name = ac.r_constraint_name" +
-          "          WHERE atc.table_name = :table" +
+          "          WHERE atc.table_name = ?" +
           "          GROUP BY atc.column_name, atc.data_type, atc.data_length, atc.data_precision, atc.data_scale, atc.nullable, atc.table_name, " +
           "          atc.column_id" +
           " ORDER BY atc.column_id")
-      .namedParam("table", tableName.toUpperCase())
-      .listResult(new ColumnMapper());
+      .execute(Tuple.of(tableName.toUpperCase()))
+      .map(columns -> Table.builder()
+        .name(tableName)
+        .columns(ColumnMapper.map(columns))
+        .build());
 
-    List<Index> indexes = oracleJdbc.query().select(
-        "SELECT i.index_name, i.uniqueness, i.table_name, " +
-          "LISTAGG(c.column_name, '|') WITHIN GROUP (ORDER BY c.column_position) as columns " +
-          "FROM all_indexes i " +
-          "JOIN all_ind_columns c ON i.owner = c.index_owner AND i.index_name = c.index_name " +
-          "WHERE i.table_name = :table " +
-          "GROUP BY i.index_name, i.uniqueness, i.table_name")
-      .namedParam("table", tableName.toUpperCase())
-      .listResult(new IndexMapper())
-      // On filtre les clé primaires
-      .stream().filter(index -> !index.isPrimaryKeyIndex(columns)).toList();
 
-    return Table.builder()
-      .name(tableName)
-      .columns(columns)
-      .indexes(indexes)
-      .build();
+//    List<Index> indexes = oracleJdbc.query().select(
+//        "SELECT i.index_name, i.uniqueness, i.table_name, " +
+//          "LISTAGG(c.column_name, '|') WITHIN GROUP (ORDER BY c.column_position) as columns " +
+//          "FROM all_indexes i " +
+//          "JOIN all_ind_columns c ON i.owner = c.index_owner AND i.index_name = c.index_name " +
+//          "WHERE i.table_name = :table " +
+//          "GROUP BY i.index_name, i.uniqueness, i.table_name")
+//      .namedParam("table", tableName.toUpperCase())
+//      .listResult(new IndexMapper())
+//      // On filtre les clé primaires
+//      .stream().filter(index -> !index.isPrimaryKeyIndex(columns)).toList();
+
   }
 
-  public void fetchDatasInBatchAndProcess(Table table, BatchProcessor batchProcessor) {
+  public Uni<Table> fetchDatasInBatchAndProcess(Table table, BatchProcessor batchProcessor) {
+    log.info("6");
+
     String paginationSql =
       "SELECT " + table.getColumns().stream().map(Column::getName).collect(Collectors.joining(", ")) +
         " FROM (" +
@@ -75,22 +83,37 @@ public class OracleQueries {
         "  FROM " + table.getName() + " t" +
         ") WHERE rn BETWEEN ? AND ?";
 
-    int startRow = 1;
-    int endRow = batchSize;
-    List<Map<String, Object>> batch;
+    return batchProcessor.withTransaction(sqlConnection -> {
+      AtomicInteger currentStartRow = new AtomicInteger(1);
 
-    do {
-      batch = oracleJdbc.query().select(paginationSql)
-          .params(startRow, endRow)
-            .listResult(Mappers.map());
+      return Multi.createBy().repeating()
+        .uni(() ->
+          Uni.createFrom()
+            .item(() -> {
+              int startRow = currentStartRow.get();
+              currentStartRow.addAndGet(batchSize);
+              int endRow = startRow + batchSize - 1;
+              return Tuple.of(startRow, endRow);
+            })
+            .chain(tuple -> oraPool.preparedQuery(paginationSql).execute(tuple))
+            .chain(result -> {
+              List<Map<String, Object>> batch = MapMapper.map(result);
+              // I can probably do better
+              if (batch.isEmpty()) {
+                return Uni.createFrom().failure(new RuntimeException("STOP"));
+              }
 
-      if (!batch.isEmpty()) {
-        batchProcessor.processBatch(batch, table);
-      }
-
-      startRow = endRow + 1;
-      endRow = startRow + batchSize - 1;
-    } while (batch.size() == batchSize);
-
+              return batchProcessor.processBatch(batch, table, sqlConnection)
+                .map(ignored -> batch.size());
+            })
+        )
+        .whilst(batchSize -> Objects.equals(batchSize, this.batchSize)) // Continue while batches are full
+        .onFailure(throwable -> {
+          log.error("Error :", throwable);
+          return "STOP".equals(throwable.getMessage());
+        })
+        .recoverWithItem(ignored -> null) // Convert the "STOP" signal to success
+        .toUni().replaceWith(table);
+    });
   }
 }

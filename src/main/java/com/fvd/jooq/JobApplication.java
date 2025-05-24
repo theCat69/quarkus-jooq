@@ -5,6 +5,8 @@ import com.fvd.jooq.db.PostgresQueries;
 import com.fvd.jooq.db.model.Table;
 import io.quarkus.runtime.QuarkusApplication;
 import io.quarkus.runtime.annotations.QuarkusMain;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -33,14 +35,24 @@ public class JobApplication implements QuarkusApplication {
     // - En cas d'erreur on drop tout les tables et on recréé les tables "normals" avec les tables temporaires
     // - En finally on supprime les tables temporaires.
     // TODO prevoir de drop le schema avec une property si on veut forcer un schema propre
-    postgresQueries.createSchemaIfNotExist();
-    tableNames.reversed().forEach(postgresQueries::dropTableIfExists);
-    tableNames.forEach(tableName -> {
-      Table table = oracleQueries.findTableDefinition(tableName);
-      log.info("Table def found : {}", table);
-      postgresQueries.createTableDefinition(table);
-      oracleQueries.fetchDatasInBatchAndProcess(table, postgresQueries);
-    });
+    postgresQueries.createSchemaIfNotExist().await().indefinitely();
+
+    Multi.createFrom().items(tableNames.stream()).onItem()
+        .transformToUni(postgresQueries::dropTableIfExists)
+          .merge(10).collect().asList().await().indefinitely();
+
+    Uni<List<Table>> result = Multi.createFrom().items(tableNames.stream())
+      .onItem()
+      .transformToUni(tableName ->
+        oracleQueries.findTableDefinition(tableName)
+          .chain(postgresQueries::createTableDefinition)
+          .chain(table -> oracleQueries.fetchDatasInBatchAndProcess(table, postgresQueries))
+          .invoke((table) -> log.info("Table done {}", table.getName()))
+      )
+      .merge(10)
+      .collect()
+      .asList();
+    result.await().indefinitely();
     log.info("end");
     return 0;
   }

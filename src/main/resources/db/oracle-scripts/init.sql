@@ -27,6 +27,64 @@ insert into dept(dept_id, dept_name)
 values(1, 'departement');
 insert into dept(dept_id, dept_name)
 values(2, 'departement2');
+insert into dept(dept_id, dept_name)
+values(3, 'departement3');
+insert into dept(dept_id, dept_name)
+values(4, 'departement3');
+insert into dept(dept_id, dept_name)
+values(5, 'departement3');
+insert into dept(dept_id, dept_name)
+values(6, 'departement3');
+insert into dept(dept_id, dept_name)
+values(7, 'departement3');
+insert into dept(dept_id, dept_name)
+values(8, 'departement3');
+insert into dept(dept_id, dept_name)
+values(9, 'departement3');
+insert into dept(dept_id, dept_name)
+values(10, 'departement3');
+insert into dept(dept_id, dept_name)
+values(11, 'departement3');
+insert into dept(dept_id, dept_name)
+values(12, 'departement3');
+insert into dept(dept_id, dept_name)
+values(13, 'departement3');
+insert into dept(dept_id, dept_name)
+values(14, 'departement3');
+insert into dept(dept_id, dept_name)
+values(16, 'departement3');
+insert into dept(dept_id, dept_name)
+values(17, 'departement3');
+insert into dept(dept_id, dept_name)
+values(18, 'departement3');
+insert into dept(dept_id, dept_name)
+values(19, 'departement3');
+insert into dept(dept_id, dept_name)
+values(20, 'departement3');
+insert into dept(dept_id, dept_name)
+values(21, 'departement3');
+insert into dept(dept_id, dept_name)
+values(22, 'departement3');
+insert into dept(dept_id, dept_name)
+values(23, 'departement3');
+insert into dept(dept_id, dept_name)
+values(24, 'departement3');
+insert into dept(dept_id, dept_name)
+values(25, 'departement3');
+insert into dept(dept_id, dept_name)
+values(26, 'departement3');
+insert into dept(dept_id, dept_name)
+values(27, 'departement3');
+insert into dept(dept_id, dept_name)
+values(28, 'departement3');
+insert into dept(dept_id, dept_name)
+values(29, 'departement3');
+insert into dept(dept_id, dept_name)
+values(30, 'departement3');
+insert into dept(dept_id, dept_name)
+values(31, 'departement3');
+insert into dept(dept_id, dept_name)
+values(32, 'departement3');
 
 insert into emp(emp_no, emp_name, dept_id, salary)
 values (1, 'name', 1, 5000);

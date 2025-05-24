@@ -40,6 +40,14 @@
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-reactive-oracle-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-reactive-pg-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
             <artifactId>quarkus-arc</artifactId>
         </dependency>
         <dependency>
@@ -56,11 +64,11 @@
             <version>1.18.38</version>
             <scope>provided</scope>
         </dependency>
-        <dependency>
-            <groupId>io.quarkiverse.fluentjdbc</groupId>
-            <artifactId>quarkus-fluentjdbc</artifactId>
-            <version>1.0.0</version>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>io.quarkiverse.fluentjdbc</groupId>-->
+<!--            <artifactId>quarkus-fluentjdbc</artifactId>-->
+<!--            <version>1.0.0</version>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-junit5</artifactId>

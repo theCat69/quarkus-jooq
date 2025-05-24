@@ -3,17 +3,23 @@ package com.fvd.jooq.db;
 import com.fvd.jooq.db.batching.BatchProcessor;
 import com.fvd.jooq.db.model.Column;
 import com.fvd.jooq.db.model.Table;
-import io.agroal.api.AgroalDataSource;
+import io.smallrye.mutiny.Uni;
+import io.vertx.codegen.annotations.Nullable;
+import io.vertx.mutiny.sqlclient.Pool;
+import io.vertx.mutiny.sqlclient.SqlConnection;
+import io.vertx.mutiny.sqlclient.Tuple;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.codejargon.fluentjdbc.api.FluentJdbc;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Slf4j
 @ApplicationScoped
@@ -22,43 +28,59 @@ public class PostgresQueries implements BatchProcessor {
   @ConfigProperty(name = "quarkus.liquibase.schemas", defaultValue = "")
   String schema;
 
-  private final FluentJdbc postgresJdbc;
+  private final Pool pgPool;
 
   @Inject
-  public PostgresQueries(AgroalDataSource dataSource) {
-    this.postgresJdbc = JdbcFluentFactory.createFluentJdbc(dataSource, JdbcFluentFactory.DBType.POSTGRES);
+  public PostgresQueries(Pool pgPool) {
+    this.pgPool = pgPool;
   }
 
-  public void createSchemaIfNotExist() {
+  public Uni<Void> createSchemaIfNotExist() {
     if (StringUtils.isNotBlank(schema)) {
-      postgresJdbc.query().update("CREATE SCHEMA IF NOT EXISTS " + schema).run();
+      log.info("1");
+      return pgPool.query("CREATE SCHEMA IF NOT EXISTS " + schema)
+        .execute().replaceWithVoid();
     }
+    return Uni.createFrom().voidItem();
   }
 
-  public void dropTableIfExists(String tableName) {
-    postgresJdbc.query().update("DROP TABLE IF EXISTS " + getTableName(tableName, schema)).run();
+  public Uni<Void> dropTableIfExists(String tableName) {
+    log.info("2");
+    return pgPool.query("DROP TABLE IF EXISTS " + getTableName(tableName, schema))
+      .execute().replaceWithVoid();
   }
 
   public static String getTableName(String tableName, String schema) {
     return StringUtils.isNotBlank(schema) ? schema + "." + tableName : tableName;
   }
 
-  public void createTableDefinition(Table table) {
+  @SneakyThrows
+  public Uni<Table> createTableDefinition(Table table) {
+    log.info("3");
     //create table
-    postgresJdbc.query().update("CREATE TABLE " + getTableName(table.getName(), schema) + " (" +
+    return pgPool.query("CREATE TABLE " + getTableName(table.getName(), schema) + " (" +
       table.getColumns().stream().map(col -> col.getCreateTableString(schema)).collect(Collectors.joining(", ")) +
-      " )").run();
-    //add indexes
-    table.getIndexes().forEach(index -> postgresJdbc.query().update(index.getCreateIndexString(schema)).run());
+      " )").execute().replaceWith(table);
   }
 
   @Override
-  public void processBatch(List<Map<String, Object>> batch, Table table) {
-    postgresJdbc.query().batch("INSERT INTO " + getTableName(table.getName(), schema) + " (" +
+  public Uni<Void> processBatch(List<Map<String, Object>> batch, Table table, SqlConnection sqlConnection) {
+    log.info("4");
+    return sqlConnection.preparedQuery("INSERT INTO " + getTableName(table.getName(), schema) + " (" +
         table.getColumns().stream().map(Column::getName).collect(Collectors.joining(", ")) +
-        ") VALUES (" + table.getColumns().stream().map(col -> "?").collect(Collectors.joining(", ")) + ")")
-      .params(batch.stream()
-        .map(map -> map.values().stream().toList()))
-      .batchSize(batch.size()).run();
+        ") VALUES (" + IntStream.range(0, table.getColumns().size())
+        .mapToObj(i -> {
+          i = i + 1;
+          return "$" + i;
+        }).collect(Collectors.joining(", ")) + ")")
+      .executeBatch(batch.stream().map(map -> Tuple.from(map.values().toArray())).toList())
+      .invoke(() -> log.info("Processed {} elements on table {}", batch.size(), table.getName()))
+      .replaceWithVoid();
   }
+
+  @Override
+  public <T> Uni<@Nullable T> withTransaction(Function<SqlConnection, Uni<@Nullable T>> function) {
+    return pgPool.withTransaction(function);
+  }
+
 }
