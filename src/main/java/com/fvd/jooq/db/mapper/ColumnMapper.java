@@ -17,7 +17,8 @@ public class ColumnMapper {
   public List<Column> map(RowSet<Row> rs) {
     RowIterator<Row> iter = rs.iterator();
     List<Column> resultList = new ArrayList<>();
-    do {
+
+    while(iter.hasNext()) {
       Row row = iter.next();
       String constraint_types = row.getString("constraint_types");
       List<String> constraintTypes = constraint_types != null ?
@@ -45,7 +46,7 @@ public class ColumnMapper {
         .build();
 
       resultList.add(column);
-    } while (iter.hasNext());
+    }
 
     return resultList;
   }

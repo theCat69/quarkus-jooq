@@ -52,6 +52,8 @@ values(13, 'departement3');
 insert into dept(dept_id, dept_name)
 values(14, 'departement3');
 insert into dept(dept_id, dept_name)
+values(15, 'departement3');
+insert into dept(dept_id, dept_name)
 values(16, 'departement3');
 insert into dept(dept_id, dept_name)
 values(17, 'departement3');

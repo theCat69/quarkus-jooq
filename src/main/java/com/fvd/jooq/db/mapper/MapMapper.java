@@ -18,14 +18,14 @@ public class MapMapper {
     RowIterator<Row> iter = rs.iterator();
     List<Map<String, Object>> resultList = new ArrayList<>();
 
-    do {
+    while(iter.hasNext()) {
       Row row = iter.next();
       Map<String, Object> rowMap = new LinkedHashMap<>();
       for(String columnName: columnNames) {
         rowMap.put(columnName, row.getValue(columnName));
       }
       resultList.add(rowMap);
-    } while (iter.hasNext());
+    }
 
     return resultList;
   }

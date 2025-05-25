@@ -16,8 +16,6 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -87,33 +85,23 @@ public class OracleQueries {
       AtomicInteger currentStartRow = new AtomicInteger(1);
 
       return Multi.createBy().repeating()
-        .uni(() ->
-          Uni.createFrom()
-            .item(() -> {
-              int startRow = currentStartRow.get();
-              currentStartRow.addAndGet(batchSize);
-              int endRow = startRow + batchSize - 1;
-              return Tuple.of(startRow, endRow);
-            })
-            .chain(tuple -> oraPool.preparedQuery(paginationSql).execute(tuple))
-            .chain(result -> {
-              List<Map<String, Object>> batch = MapMapper.map(result);
-              // I can probably do better
-              if (batch.isEmpty()) {
-                return Uni.createFrom().failure(new RuntimeException("STOP"));
-              }
+        .uni(() -> {
+          int startRow = currentStartRow.getAndAdd(batchSize);
+          int endRow = startRow + batchSize - 1;
 
-              return batchProcessor.processBatch(batch, table, sqlConnection)
-                .map(ignored -> batch.size());
-            })
-        )
-        .whilst(batchSize -> Objects.equals(batchSize, this.batchSize)) // Continue while batches are full
-        .onFailure(throwable -> {
-          log.error("Error :", throwable);
-          return "STOP".equals(throwable.getMessage());
+          return oraPool.preparedQuery(paginationSql)
+            .execute(Tuple.of(startRow, endRow))
+            .map(MapMapper::map);
         })
-        .recoverWithItem(ignored -> null) // Convert the "STOP" signal to success
-        .toUni().replaceWith(table);
+        .whilst(batch -> Objects.equals(batch.size(), batchSize)) // Stop when batch is not full
+        .filter(batch -> !batch.isEmpty()) // Skip empty batches
+        .onItem().transformToUniAndMerge(batch ->
+          // Process each batch, but don't wait - merge all processing Unis
+          batchProcessor.processBatch(batch, table, sqlConnection)
+        )
+        .toUni() // Convert Multi<Void> to Uni<Void> when all are complete
+        .replaceWith(table)
+        .onFailure().invoke(throwable -> log.error("Error in batch pipeline:", throwable));
     });
   }
 }
