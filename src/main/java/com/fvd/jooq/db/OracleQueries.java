@@ -36,7 +36,6 @@ public class OracleQueries {
 
   @SneakyThrows
   public Uni<Table> findTableDefinition(String tableName) {
-    log.info("5");
     // Get column definitions
     return oraPool.preparedQuery(
         "SELECT atc.column_name, atc.data_type, atc.data_length, atc.data_precision, atc.data_scale, atc.nullable, atc.table_name, " +
@@ -72,8 +71,6 @@ public class OracleQueries {
   }
 
   public Uni<Table> fetchDatasInBatchAndProcess(Table table, BatchProcessor batchProcessor) {
-    log.info("6");
-
     String paginationSql =
       "SELECT " + table.getColumns().stream().map(Column::getName).collect(Collectors.joining(", ")) +
         " FROM (" +

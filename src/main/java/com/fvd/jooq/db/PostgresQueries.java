@@ -37,7 +37,6 @@ public class PostgresQueries implements BatchProcessor {
 
   public Uni<Void> createSchemaIfNotExist() {
     if (StringUtils.isNotBlank(schema)) {
-      log.info("1");
       return pgPool.query("CREATE SCHEMA IF NOT EXISTS " + schema)
         .execute().replaceWithVoid();
     }
@@ -45,7 +44,6 @@ public class PostgresQueries implements BatchProcessor {
   }
 
   public Uni<Void> dropTableIfExists(String tableName) {
-    log.info("2");
     return pgPool.query("DROP TABLE IF EXISTS " + getTableName(tableName, schema))
       .execute().replaceWithVoid();
   }
@@ -56,7 +54,6 @@ public class PostgresQueries implements BatchProcessor {
 
   @SneakyThrows
   public Uni<Table> createTableDefinition(Table table) {
-    log.info("3");
     //create table
     return pgPool.query("CREATE TABLE " + getTableName(table.getName(), schema) + " (" +
       table.getColumns().stream().map(col -> col.getCreateTableString(schema)).collect(Collectors.joining(", ")) +
@@ -65,7 +62,6 @@ public class PostgresQueries implements BatchProcessor {
 
   @Override
   public Uni<Void> processBatch(List<Map<String, Object>> batch, Table table, SqlConnection sqlConnection) {
-    log.info("4");
     return sqlConnection.preparedQuery("INSERT INTO " + getTableName(table.getName(), schema) + " (" +
         table.getColumns().stream().map(Column::getName).collect(Collectors.joining(", ")) +
         ") VALUES (" + IntStream.range(0, table.getColumns().size())
